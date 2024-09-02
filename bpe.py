@@ -9,15 +9,7 @@ from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 
-df = None
-# test_corpus = '''Tokenization is the process of breaking down 
-# a sequence of text into smaller units called tokens,
-# which can be words, phrases, or even individual characters.
-# Tokenization is often the first step in natural languages processing tasks 
-# such as text classification, named entity recognition, and sentiment analysis.
-# The resulting tokens are typically used as input to further processing steps,
-# such as vectorization, where the tokens are converted
-# into numerical representations for machine learning models to use.'''
+from transformers import BertTokenizer
 
 
 class AbstractBytePairEncoder:
@@ -71,7 +63,7 @@ class AbstractBytePairEncoder:
 
         return vocab
     
-    def run(self, k=200):
+    def run(self):
         return NotImplementedError(
             'Please use the single-threaded or parallelized subclasses '
             'to run this function!'
@@ -103,7 +95,59 @@ class MultiThreadedBytePairEncoder(AbstractBytePairEncoder):
         print(end - start, 'seconds')
 
 
+class AbstractWordPieceTokenizer:
+    def __init__(self, samples, *args, **kwargs):
+        self.samples = samples
+        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+    
+    def tokenize(self, sample):
+        tokens = self.tokenizer.tokenize(sample)
+        return tokens
+
+    def run(self):
+        return NotImplementedError(
+            'Please use the single-threaded or parallelized subclasses '
+            'to run this function!'
+        )
+
+
+class SingleThreadedBertTokenizer(AbstractWordPieceTokenizer):
+    def run(self):
+        start = time.time()
+        for i, sample in enumerate(self.samples):
+            print('item:', i)
+            tokens = self.tokenize(sample)
+            pprint.pprint(tokens)
+            
+        end = time.time()
+        print(end - start, 'seconds')
+
+
+class MultiThreadedBertTokenizer(AbstractWordPieceTokenizer):
+    def run(self):
+        start = time.time()
+        with ProcessPoolExecutor() as executor:
+            futures = [executor.submit(self.tokenize, sample) for sample in self.samples]
+            for i, future in enumerate(as_completed(futures)):
+                print('item:', i)
+                pprint.pprint(future.result())
+
+        end = time.time()
+        print(end - start, 'seconds')
+
+
+
 if __name__ == '__main__':
+    test_corpus = '''Tokenization is the process of breaking down 
+        a sequence of text into smaller units called tokens,
+        which can be words, phrases, or even individual characters.
+        Tokenization is often the first step in natural languages processing tasks 
+        such as text classification, named entity recognition, and sentiment analysis.
+        The resulting tokens are typically used as input to further processing steps,
+        such as vectorization, where the tokens are converted
+        into numerical representations for machine learning models to use.'''
+
+    df = None
     df = pd.read_csv('./datasets/train.csv')
     
     items = df.sample(n=1000, random_state=42)
@@ -123,5 +167,11 @@ if __name__ == '__main__':
     # st_bpe = SingleThreadBytePairEncoder(samples=samples, k=200)
     # st_bpe.run()
     
-    mt_bpe = MultiThreadedBytePairEncoder(samples=samples, k=200)
-    mt_bpe.run()
+    # mt_bpe = MultiThreadedBytePairEncoder(samples=samples, k=200)
+    # mt_bpe.run()
+
+    # st_wordpiece = SingleThreadedBertTokenizer(samples=samples)
+    # st_wordpiece.run()
+
+    mt_wordpiece = MultiThreadedBertTokenizer(samples=samples)
+    mt_wordpiece.run()
