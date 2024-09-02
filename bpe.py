@@ -72,27 +72,33 @@ class AbstractBytePairEncoder:
 
 class SingleThreadBytePairEncoder(AbstractBytePairEncoder):
     def run(self):
+        token_set = []
         start = time.time()
         for i, sample in enumerate(self.samples):
             # without pre-tokenization 
             print('item:', i)
-            pprint.pprint(self.bpe(sample))
+            result = self.bpe(sample)
+            pprint.pprint(result)
         end = time.time()
         print(end - start, 'seconds')
 
 
 class MultiThreadedBytePairEncoder(AbstractBytePairEncoder):
     def run(self):
+        token_set = []
         start = time.time()
         with ProcessPoolExecutor() as executor:
             futures = [executor.submit(self.bpe, sample) for sample in self.samples]
             for i, future in enumerate(as_completed(futures)):
                 # without pre-tokenization 
                 print('item:', i)
-                pprint.pprint(future.result())
+                result = future.result().keys()
+                pprint.pprint(result)
+                token_set.append(result)
 
         end = time.time()
         print(end - start, 'seconds')
+        return token_set
 
 
 class AbstractWordPieceTokenizer:
@@ -113,27 +119,34 @@ class AbstractWordPieceTokenizer:
 
 class SingleThreadedBertTokenizer(AbstractWordPieceTokenizer):
     def run(self):
+        token_set = []
         start = time.time()
         for i, sample in enumerate(self.samples):
             print('item:', i)
             tokens = self.tokenize(sample)
             pprint.pprint(tokens)
+            token_set.append(tokens)
             
         end = time.time()
         print(end - start, 'seconds')
+        return token_set
 
 
 class MultiThreadedBertTokenizer(AbstractWordPieceTokenizer):
     def run(self):
         start = time.time()
+        token_set = []
         with ProcessPoolExecutor() as executor:
             futures = [executor.submit(self.tokenize, sample) for sample in self.samples]
             for i, future in enumerate(as_completed(futures)):
                 print('item:', i)
-                pprint.pprint(future.result())
+                result = future.result()
+                token_set.append(result)
+                pprint.pprint(result)
 
         end = time.time()
         print(end - start, 'seconds')
+        return token_set
 
 
 
@@ -167,8 +180,8 @@ if __name__ == '__main__':
     # st_bpe = SingleThreadBytePairEncoder(samples=samples, k=200)
     # st_bpe.run()
     
-    # mt_bpe = MultiThreadedBytePairEncoder(samples=samples, k=200)
-    # mt_bpe.run()
+    mt_bpe = MultiThreadedBytePairEncoder(samples=samples, k=200)
+    mt_bpe.run()
 
     # st_wordpiece = SingleThreadedBertTokenizer(samples=samples)
     # st_wordpiece.run()
