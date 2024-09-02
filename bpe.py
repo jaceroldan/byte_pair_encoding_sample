@@ -1,3 +1,4 @@
+import time
 import pprint
 import os
 import re
@@ -9,7 +10,7 @@ from collections import defaultdict
 # Make selection of how to segment the sentences
 
 df = None
-corpus = '''Tokenization is the process of breaking down 
+test_corpus = '''Tokenization is the process of breaking down 
 a sequence of text into smaller units called tokens,
 which can be words, phrases, or even individual characters.
 Tokenization is often the first step in natural languages processing tasks 
@@ -71,12 +72,13 @@ def bpe(s, k=200):
 if __name__ == '__main__':
     df = pd.read_csv('./datasets/train.csv')
     
-    items = df.sample(n=1000)
+    items = df.sample(n=1000, random_state=42)
 
     n = 0
     samples = []
     while n < 1000:
-        curr_path = os.path.join(os.getcwd(), 'datasets', 'train', items.iloc[n]['Id'] + '.json')
+        curr_path = os.path.join(
+            os.getcwd(), 'datasets', 'train', items.iloc[n]['Id'] + '.json')
 
         with open(curr_path, 'r') as file:
             curr_json = json.load(file)
@@ -84,5 +86,11 @@ if __name__ == '__main__':
             samples.append(''.join([cj['text'] for cj in curr_json]))
         n += 1
 
-    pprint.pprint(bpe(corpus, k=240))
-
+    # runner:
+    start = time.time()
+    for i, sample in enumerate(samples):
+        # without pre-tokenization 
+        print('item:', i)
+        pprint.pprint(bpe(sample))
+    end = time.time()
+    print(end - start, 'seconds')
