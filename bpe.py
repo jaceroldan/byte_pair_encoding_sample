@@ -12,10 +12,29 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from transformers import BertTokenizer
 
 
+# TODO: Extract stats for compression ratio, Heaps' law
 class AbstractBytePairEncoder:
-    def __init__(self, samples, k=200, *args, **kwargs):
+    def __init__(self, samples, k=200, beta=0.5, *args, **kwargs):
         self.samples = samples
         self.k = k
+        self.compression_time = None
+        self.compression_ratio = None
+        self.beta = beta
+        self.heaps_law_k = None
+        self.num_types = None
+        self.num_tokens = None
+
+    def compute_compression_ratio(self, original, compressed):
+        """
+        For the computation of data compression ratio.
+        We compute the ratio of the size of the original vocab to the size
+        of the vocab of the result.
+
+        Reference: 
+        """
+        original_size = sum(len(word.split()) for word in original.split())
+        compressed_size = sum(len(word.split()) for word in compressed)
+        return original_size / compressed_size
 
     def merge(self, vocab, best_pair):
         new_vocab = defaultdict(int)
@@ -50,7 +69,7 @@ class AbstractBytePairEncoder:
         return vocab
 
     def bpe(self, s):
-        # TODO: Figure out which algorithm to use for sentence extraction.
+        # TODO: Figure out which algorithm to use for sentence segmentation.
         vocab = self.extract_vocab(s)
 
         for i in range(self.k):
@@ -72,28 +91,30 @@ class AbstractBytePairEncoder:
 
 class SingleThreadBytePairEncoder(AbstractBytePairEncoder):
     def run(self):
+        print('Running single-threaded BPE tokenizer...')
         token_set = []
         start = time.time()
         for i, sample in enumerate(self.samples):
             # without pre-tokenization 
-            print('item:', i)
+            print('item:', i + 1)
             result = self.bpe(sample)
-            pprint.pprint(result)
+            token_set.append(result)
         end = time.time()
         print(end - start, 'seconds')
+        return token_set
 
 
 class MultiThreadedBytePairEncoder(AbstractBytePairEncoder):
     def run(self):
+        print('Running multi-threaded BPE tokenizer...')
         token_set = []
         start = time.time()
         with ProcessPoolExecutor() as executor:
             futures = [executor.submit(self.bpe, sample) for sample in self.samples]
             for i, future in enumerate(as_completed(futures)):
                 # without pre-tokenization 
-                print('item:', i)
+                print('item:', i + 1)
                 result = future.result().keys()
-                pprint.pprint(result)
                 token_set.append(result)
 
         end = time.time()
@@ -119,12 +140,12 @@ class AbstractWordPieceTokenizer:
 
 class SingleThreadedBertTokenizer(AbstractWordPieceTokenizer):
     def run(self):
+        print('Running single threaded WordPiece tokenizer...')
         token_set = []
         start = time.time()
         for i, sample in enumerate(self.samples):
-            print('item:', i)
+            print('item:', i + 1)
             tokens = self.tokenize(sample)
-            pprint.pprint(tokens)
             token_set.append(tokens)
             
         end = time.time()
@@ -134,16 +155,15 @@ class SingleThreadedBertTokenizer(AbstractWordPieceTokenizer):
 
 class MultiThreadedBertTokenizer(AbstractWordPieceTokenizer):
     def run(self):
+        print('Running multi-threaded WordPiece tokenizer...')
         start = time.time()
         token_set = []
         with ProcessPoolExecutor() as executor:
             futures = [executor.submit(self.tokenize, sample) for sample in self.samples]
             for i, future in enumerate(as_completed(futures)):
-                print('item:', i)
+                print('item:', i + 1)
                 result = future.result()
                 token_set.append(result)
-                pprint.pprint(result)
-
         end = time.time()
         print(end - start, 'seconds')
         return token_set
@@ -163,28 +183,23 @@ if __name__ == '__main__':
     df = None
     df = pd.read_csv('./datasets/train.csv')
     
-    items = df.sample(n=1000, random_state=42)
+    n = 1000
+    items = df.sample(n=n, random_state=42)
 
-    n = 0
+    i = 0
     samples = []
-    while n < 1000:
+    while i < n:
         curr_path = os.path.join(
-            os.getcwd(), 'datasets', 'train', items.iloc[n]['Id'] + '.json')
+            os.getcwd(), 'datasets', 'train', items.iloc[i]['Id'] + '.json')
 
         with open(curr_path, 'r') as file:
             curr_json = json.load(file)
             # TODO: Include the cj['section_title'] in the parsing?
             samples.append(''.join([cj['text'] for cj in curr_json]))
-        n += 1  
+        i += 1  
 
-    # st_bpe = SingleThreadBytePairEncoder(samples=samples, k=200)
-    # st_bpe.run()
-    
     mt_bpe = MultiThreadedBytePairEncoder(samples=samples, k=200)
     mt_bpe.run()
-
-    # st_wordpiece = SingleThreadedBertTokenizer(samples=samples)
-    # st_wordpiece.run()
 
     mt_wordpiece = MultiThreadedBertTokenizer(samples=samples)
     mt_wordpiece.run()

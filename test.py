@@ -36,7 +36,7 @@ class TestRunner:
         overall_report = []
 
         for i in range(len(self.samples)):
-            bpe_tokens = set(bpe_tokens_list[i])
+            bpe_tokens = set([token.replace('</w>', '') for token in bpe_tokens_list[i]])
             wordpiece_tokens = set(wordpiece_tokens_list[i])
 
             # Tokens unique to BPE
