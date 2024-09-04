@@ -98,7 +98,7 @@ class SingleThreadBytePairEncoder(AbstractBytePairEncoder):
             self.compression_ratios[i] = results[1]
             token_set.append(result)
             item_end = time.time()
-            self.compression_times[i] = f'{item_end - item_start:.8f} seconds'
+            self.compression_times[i] = f'{item_end - item_start:.8f}'
         end = time.time()
         print(f"Processing time: {end - start} seconds")
         return token_set
@@ -119,7 +119,7 @@ class MultiThreadedBytePairEncoder(AbstractBytePairEncoder):
                 self.compression_ratios[i] = results[1]
                 token_set.append(result)
                 item_end = time.time()
-                self.compression_times[i] = f'{item_end - item_start:.8f} seconds'
+                self.compression_times[i] = f'{item_end - item_start:.8f}'
 
         end = time.time()
         print(f"Processing time: {end - start} seconds")
@@ -167,7 +167,7 @@ class SingleThreadedBertTokenizer(AbstractWordPieceTokenizer):
             self.compression_ratios[i] = results[1]
             token_set.append(tokens)
             item_end = time.time()
-            self.compression_times[i] = f'{item_end - item_start:.8f} seconds'
+            self.compression_times[i] = f'{item_end - item_start:.8f}'
 
             
         end = time.time()
@@ -190,7 +190,7 @@ class MultiThreadedBertTokenizer(AbstractWordPieceTokenizer):
                 token_set.append(result)
                 self.compression_ratios[i] = results[1]
                 item_end = time.time()
-                self.compression_times[i] = f'{item_end - item_start:.8f} seconds'
+                self.compression_times[i] = f'{item_end - item_start:.8f}'
         end = time.time()
         print(end - start, 'seconds')
         return token_set

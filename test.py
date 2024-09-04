@@ -1,3 +1,4 @@
+from statistics import mean
 import os
 import json
 import pprint
@@ -27,7 +28,7 @@ class TestRunner:
             i += 1
     
     def run_results(self):
-        mt_bpe = MultiThreadedBytePairEncoder(samples=self.samples, k=200)
+        mt_bpe = MultiThreadedBytePairEncoder(samples=self.samples, k=500)
         bpe_tokens_list = mt_bpe.run()
 
         mt_wordpiece = MultiThreadedBertTokenizer(samples=self.samples)
@@ -58,13 +59,13 @@ class TestRunner:
             report = {
                 "Total BPE Tokens": len(bpe_tokens),
                 "Total WordPiece Tokens": len(wordpiece_tokens),
-                "Tokens only in BPE": list(only_in_bpe),
-                "Tokens only in WordPiece": list(only_in_wordpiece),
+                # "Tokens only in BPE": list(only_in_bpe),
+                # "Tokens only in WordPiece": list(only_in_wordpiece),
                 "Intersection Percentage": f"{intersection_percentage:.2f}%",
                 "BPE Compression Ratio": f"{mt_bpe.compression_ratios[i]:.2f}",
                 "Wordpiece Compression Ratio": f"{mt_wordpiece.compression_ratios[i]:.2f}",
                 "BPE Compression Time": f"{mt_bpe.compression_times[i]}",
-                "WordPiece Compression Time": f"{mt_bpe.compression_times[i]}",
+                "Wordpiece Compression Time": f"{mt_wordpiece.compression_times[i]}",
             }
             overall_report.append(report)
 
@@ -77,3 +78,7 @@ class TestRunner:
 if __name__ == '__main__':
     runner = TestRunner()
     results = runner.run_results()
+    print(f"Average BPE Compression Ratio: {mean([float(r['BPE Compression Ratio']) for r in results]):.2f}")
+    print(f"Average Wordpiece Compression Ratio: {mean([float(r['Wordpiece Compression Ratio']) for r in results]):.2f}")
+    print(f"Average BPE Compression Time: {mean([float(r['BPE Compression Time']) for r in results]):.8f}")
+    print(f"Average Wordpiece Compression Time: {mean([float(r['Wordpiece Compression Time']) for r in results]):.8f}")
