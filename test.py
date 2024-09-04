@@ -8,7 +8,7 @@ from bpe import MultiThreadedBertTokenizer, MultiThreadedBytePairEncoder
 
 
 class TestRunner:
-    def __init__(self):
+    def __init__(self, k_values=[200]):
         df = None
         df = pd.read_csv('./datasets/train.csv')
         
@@ -60,14 +60,20 @@ class TestRunner:
                 "Total WordPiece Tokens": len(wordpiece_tokens),
                 "Tokens only in BPE": list(only_in_bpe),
                 "Tokens only in WordPiece": list(only_in_wordpiece),
-                "Intersection Percentage": f"{intersection_percentage:.2f}%"
+                "Intersection Percentage": f"{intersection_percentage:.2f}%",
+                "BPE Compression Ratio": f"{mt_bpe.compression_ratios[i]:.2f}",
+                "Wordpiece Compression Ratio": f"{mt_wordpiece.compression_ratios[i]:.2f}",
+                "BPE Compression Time": f"{mt_bpe.compression_times[i]}",
+                "WordPiece Compression Time": f"{mt_bpe.compression_times[i]}",
             }
             overall_report.append(report)
 
             # Display the report
             pprint.pprint(report)
 
+        return overall_report
+
 
 if __name__ == '__main__':
     runner = TestRunner()
-    runner.run_results()
+    results = runner.run_results()

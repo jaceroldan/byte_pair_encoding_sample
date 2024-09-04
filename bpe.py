@@ -16,7 +16,7 @@ class AbstractBytePairEncoder:
     def __init__(self, samples, k=200, beta=0.5, *args, **kwargs):
         self.samples = samples
         self.k = k
-        self.compression_time = None
+        self.compression_times = {}
         self.compression_ratios = {}
         self.beta = beta
         self.heaps_law_k = None
@@ -91,11 +91,14 @@ class SingleThreadBytePairEncoder(AbstractBytePairEncoder):
         token_set = []
         start = time.time()
         for i, sample in enumerate(self.samples):
+            item_start = time.time()
             print('Processing item:', i + 1)
             results = self.bpe(sample)
             result = results[0]
             self.compression_ratios[i] = results[1]
             token_set.append(result)
+            item_end = time.time()
+            self.compression_times[i] = f'{item_end - item_start:.8f} seconds'
         end = time.time()
         print(f"Processing time: {end - start} seconds")
         return token_set
@@ -109,11 +112,14 @@ class MultiThreadedBytePairEncoder(AbstractBytePairEncoder):
         with ProcessPoolExecutor() as executor:
             futures = [executor.submit(self.bpe, sample) for sample in self.samples]
             for i, future in enumerate(as_completed(futures)):
+                item_start = time.time()
                 print('Processing item:', i + 1)
                 results = future.result()
                 result = results[0].keys()
                 self.compression_ratios[i] = results[1]
                 token_set.append(result)
+                item_end = time.time()
+                self.compression_times[i] = f'{item_end - item_start:.8f} seconds'
 
         end = time.time()
         print(f"Processing time: {end - start} seconds")
@@ -124,6 +130,7 @@ class AbstractWordPieceTokenizer:
     def __init__(self, samples, *args, **kwargs):
         self.samples = samples
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        self.compression_times = {}
         self.compression_ratios = {}
     
     def tokenize(self, sample):
@@ -153,11 +160,15 @@ class SingleThreadedBertTokenizer(AbstractWordPieceTokenizer):
         token_set = []
         start = time.time()
         for i, sample in enumerate(self.samples):
+            item_start = time.time()
             print('item:', i + 1)
             results = self.tokenize(sample)
             tokens = results[0]
             self.compression_ratios[i] = results[1]
             token_set.append(tokens)
+            item_end = time.time()
+            self.compression_times[i] = f'{item_end - item_start:.8f} seconds'
+
             
         end = time.time()
         print(end - start, 'seconds')
@@ -172,11 +183,14 @@ class MultiThreadedBertTokenizer(AbstractWordPieceTokenizer):
         with ProcessPoolExecutor() as executor:
             futures = [executor.submit(self.tokenize, sample) for sample in self.samples]
             for i, future in enumerate(as_completed(futures)):
+                item_start = time.time()
                 print('item:', i + 1)
                 results = future.result()
                 result = results[0]
                 token_set.append(result)
                 self.compression_ratios[i] = results[1]
+                item_end = time.time()
+                self.compression_times[i] = f'{item_end - item_start:.8f} seconds'
         end = time.time()
         print(end - start, 'seconds')
         return token_set
