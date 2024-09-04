@@ -19,15 +19,21 @@ class AbstractBytePairEncoder:
         self.compression_times = {}
         self.compression_ratios = {}
         self.beta = beta
-        self.heaps_law_k = None
-        self.num_types = None
-        self.num_tokens = None
+        self.heaps_law_k = {}
+        self.num_types = {}
+        self.num_tokens = {}
 
     def compute_compression_ratio(self, original, compressed):
         original_size = sum(len(word.split()) for word in original.split())
         compressed_size = sum(len(word.split()) for word in compressed)
         return original_size / compressed_size if compressed_size != 0 else float('inf')
 
+    def compute_heaps_law(self, vocab):
+        num_tokens = sum(vocab.values())
+        num_types = len(vocab)
+        k = num_types / (num_tokens ** self.beta)
+        return k, num_tokens, num_types
+    
     def merge(self, vocab, best_pair):
         new_vocab = defaultdict(int)
 
@@ -61,8 +67,6 @@ class AbstractBytePairEncoder:
     def bpe(self, s):
         vocab = self.extract_vocab(s)
         original_vocab = vocab.copy()
-        
-        prev_vocab_size = len(vocab)  # Track vocabulary size for early stopping
 
         for i in range(self.k):
             pairs = self.count_pairs(vocab)
@@ -99,6 +103,10 @@ class SingleThreadBytePairEncoder(AbstractBytePairEncoder):
             token_set.append(result)
             item_end = time.time()
             self.compression_times[i] = f'{item_end - item_start:.8f}'
+            k, num_tokens, num_types = self.compute_heaps_law(result)
+            self.heaps_law_k[i] = k
+            self.num_tokens[i] = num_tokens
+            self.num_types[i] = num_types
         end = time.time()
         print(f"Processing time: {end - start} seconds")
         return token_set
@@ -115,10 +123,14 @@ class MultiThreadedBytePairEncoder(AbstractBytePairEncoder):
                 item_start = time.time()
                 print('Processing item:', i + 1)
                 results = future.result()
-                result = results[0].keys()
+                result = results[0]
                 self.compression_ratios[i] = results[1]
-                token_set.append(result)
+                token_set.append(result.keys())
                 item_end = time.time()
+                k, num_tokens, num_types = self.compute_heaps_law(result)
+                self.heaps_law_k[i] = k
+                self.num_tokens[i] = num_tokens
+                self.num_types[i] = num_types
                 self.compression_times[i] = f'{item_end - item_start:.8f}'
 
         end = time.time()

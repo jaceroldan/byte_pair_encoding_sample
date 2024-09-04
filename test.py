@@ -66,6 +66,7 @@ class TestRunner:
                 "Wordpiece Compression Ratio": f"{mt_wordpiece.compression_ratios[i]:.2f}",
                 "BPE Compression Time": f"{mt_bpe.compression_times[i]}",
                 "Wordpiece Compression Time": f"{mt_wordpiece.compression_times[i]}",
+                "Heap's Law K estimate": f"{mt_bpe.heaps_law_k[i]}",
             }
             overall_report.append(report)
 
