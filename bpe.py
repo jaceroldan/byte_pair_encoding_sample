@@ -7,13 +7,12 @@ import pandas as pd
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-
+import spacy
 from transformers import BertTokenizer
 
 
-# TODO: Extract stats for compression ratio, Heaps' law
 class AbstractBytePairEncoder:
-    def __init__(self, samples, k=200, beta=0.5, *args, **kwargs):
+    def __init__(self, samples, k=200, beta=0.5, segment_sentence=True, *args, **kwargs):
         self.samples = samples
         self.k = k
         self.compression_times = {}
@@ -22,6 +21,17 @@ class AbstractBytePairEncoder:
         self.heaps_law_k = {}
         self.num_types = {}
         self.num_tokens = {}
+        self.segment_sentence = segment_sentence
+        if segment_sentence:
+            self.nlp = spacy.load('en_core_web_sm')
+
+    def segment_sentence_using_spacy(self, text):
+        # Process the text using spaCy
+        doc = self.nlp(text)
+        
+        # Extract sentences
+        sentences = [sent.text.strip() for sent in doc.sents]
+        return sentences
 
     def compute_compression_ratio(self, original, compressed):
         original_size = sum(len(word.split()) for word in original.split())
@@ -37,12 +47,29 @@ class AbstractBytePairEncoder:
     def merge(self, vocab, best_pair):
         new_vocab = defaultdict(int)
 
+        # Escape special characters in the best pair and join them with a space
         new_token = re.escape(' '.join(best_pair))
-        p = re.compile(r'(?<!\S)' + new_token + r'(?!\S)')
+
+        # Check if the pair contains special characters that could cause issues
+        if "\\" in best_pair[0] or "\\" in best_pair[1]:
+            print(f"Skipping problematic pair: {best_pair}")
+            return vocab  # Skip this problematic pair
+
+        # Compile the regular expression, escaping any special characters in the new token
+        try:
+            p = re.compile(r'(?<!\S)' + new_token + r'(?!\S)')
+        except re.error as e:
+            print(f"Regex compilation error for pair {best_pair}: {e}")
+            raise e
 
         for word in vocab:
-            altered_word = p.sub(''.join(best_pair), word)
-            new_vocab[altered_word] = vocab[word]
+            try:
+                # Perform the substitution, making sure the escape sequences are handled correctly
+                altered_word = p.sub(''.join(best_pair), word)
+                new_vocab[altered_word] = vocab[word]
+            except re.error as e:
+                print(f"Regex substitution error for word {word} and pair {best_pair}: {e}")
+                raise e
 
         return new_vocab
 
@@ -82,12 +109,24 @@ class AbstractBytePairEncoder:
         print(f"Compression Ratio at iteration {i}: {compression_ratio}")
         return vocab, compression_ratio
 
-    def run(self):
-        return NotImplementedError(
-            'Please use the single-threaded or parallelized subclasses '
-            'to run this function!'
-        )
+    def process_sample(self, sample):
+        """
+        Process a single sample which could be a list of sentences (if segmentation is enabled).
+        """
+        # Segment the sample into sentences if segmentation is enabled
+        if self.segment_sentence:
+            sentences = self.segment_sentence_using_spacy(sample)
+        else:
+            sentences = [sample]  # Treat the whole sample as one sentence if not segmenting
 
+        # Process each sentence with BPE and combine vocabularies
+        combined_vocab = defaultdict(int)
+        for sentence in sentences:
+            sentence_vocab, _ = self.bpe(sentence)
+            for word, count in sentence_vocab.items():
+                combined_vocab[word] += count
+
+        return combined_vocab
 
 class SingleThreadBytePairEncoder(AbstractBytePairEncoder):
     def run(self):
@@ -97,10 +136,9 @@ class SingleThreadBytePairEncoder(AbstractBytePairEncoder):
         for i, sample in enumerate(self.samples):
             item_start = time.time()
             print('Processing item:', i + 1)
-            results = self.bpe(sample)
-            result = results[0]
-            self.compression_ratios[i] = results[1]
+            result = self.process_sample(sample)  # Process the sample with segmentation
             token_set.append(result)
+            self.compression_ratios[i] = self.compute_compression_ratio(sample, ' '.join(result.keys()))
             item_end = time.time()
             self.compression_times[i] = f'{item_end - item_start:.8f}'
             k, num_tokens, num_types = self.compute_heaps_law(result)
@@ -118,14 +156,13 @@ class MultiThreadedBytePairEncoder(AbstractBytePairEncoder):
         token_set = []
         start = time.time()
         with ProcessPoolExecutor() as executor:
-            futures = [executor.submit(self.bpe, sample) for sample in self.samples]
+            futures = [executor.submit(self.process_sample, sample) for sample in self.samples]
             for i, future in enumerate(as_completed(futures)):
                 item_start = time.time()
                 print('Processing item:', i + 1)
-                results = future.result()
-                result = results[0]
-                self.compression_ratios[i] = results[1]
+                result = future.result()
                 token_set.append(result.keys())
+                self.compression_ratios[i] = self.compute_compression_ratio(self.samples[i], ' '.join(result.keys()))
                 item_end = time.time()
                 k, num_tokens, num_types = self.compute_heaps_law(result)
                 self.heaps_law_k[i] = k
@@ -139,11 +176,13 @@ class MultiThreadedBytePairEncoder(AbstractBytePairEncoder):
 
 
 class AbstractWordPieceTokenizer:
-    def __init__(self, samples, *args, **kwargs):
+    def __init__(self, samples, segment_sentence=True, *args, **kwargs):
         self.samples = samples
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
         self.compression_times = {}
         self.compression_ratios = {}
+        self.apply_sentence_segmentation = segment_sentence
+        self.nlp = spacy.load('en_core_web_sm')
     
     def tokenize(self, sample):
         original_size = len(sample.split())

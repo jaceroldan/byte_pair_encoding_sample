@@ -13,7 +13,7 @@ class TestRunner:
         df = None
         df = pd.read_csv('./datasets/train.csv')
         
-        n = 10
+        n = 100
         items = df.sample(n=n, random_state=42)
 
         i = 0
@@ -61,7 +61,7 @@ class TestRunner:
                 "Total WordPiece Tokens": len(wordpiece_tokens),
                 # "Tokens only in BPE": list(only_in_bpe),
                 # "Tokens only in WordPiece": list(only_in_wordpiece),
-                "Intersection Percentage": f"{intersection_percentage:.2f}%",
+                "Intersection Percentage": f"{intersection_percentage:.2f}",
                 "BPE Compression Ratio": f"{mt_bpe.compression_ratios[i]:.2f}",
                 "Wordpiece Compression Ratio": f"{mt_wordpiece.compression_ratios[i]:.2f}",
                 "BPE Compression Time": f"{mt_bpe.compression_times[i]}",
@@ -83,3 +83,4 @@ if __name__ == '__main__':
     print(f"Average Wordpiece Compression Ratio: {mean([float(r['Wordpiece Compression Ratio']) for r in results]):.2f}")
     print(f"Average BPE Compression Time: {mean([float(r['BPE Compression Time']) for r in results]):.8f}")
     print(f"Average Wordpiece Compression Time: {mean([float(r['Wordpiece Compression Time']) for r in results]):.8f}")
+    print(f"Average Intersection Percentage: {mean([float(r['Intersection Percentage']) for r in results]):.2f}%")
